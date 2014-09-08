@@ -181,15 +181,26 @@ def __virtual__():
         return False
 
     for provider, details in __opts__['providers'].iteritems():
-        if 'provider' not in details or details['provider'] != 'gce':
+        if 'gce' not in details:
             continue
 
-        pathname = os.path.expanduser(details['service_account_private_key'])
+        required_parameters = ['service_account_private_key',
+                               'service_account_email',
+                               'project']
+
+        params = details['gce']
+        for k in required_parameters:
+            if k not in params:
+                raise SaltCloudException(
+                    'The GCE {0!r} configuration is missing required parameter'
+                    ' {1!r}'.format(provider, k))
+
+        pathname = os.path.expanduser(params['service_account_private_key'])
         if not os.path.exists(pathname):
             raise SaltCloudException(
                 'The GCE service account private key {0!r} used in '
-                'the {0!r} provider configuration does not exist\n'.format(
-                    details['service_account_private_key'], provider
+                'the {1!r} provider configuration does not exist\n'.format(
+                    params['service_account_private_key'], provider
                 )
             )
         keymode = str(
@@ -198,9 +209,9 @@ def __virtual__():
         if keymode not in ('0400', '0600'):
             raise SaltCloudException(
                 'The GCE service account private key {0!r} used in '
-                'the {0!r} provider configuration needs to be set to '
+                'the {1!r} provider configuration needs to be set to '
                 'mode 0400 or 0600\n'.format(
-                    details['service_account_private_key'], provider
+                    params['service_account_private_key'], provider
                 )
             )
 
@@ -242,6 +253,9 @@ def get_conn():
             provider, __opts__)
     private_key = config.get_cloud_config_value('service_account_private_key',
             provider, __opts__)
+    if not os.path.exists(private_key):
+        raise SaltCloudException('Private key at %r not found / not available'
+                                 % private_key)
     gce = driver(email, private_key, project=project)
     gce.connection.user_agent_append('{0}/{1}'.format(_UA_PRODUCT,
                                                       _UA_VERSION))
